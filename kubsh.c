@@ -17,10 +17,14 @@ int main() {
             printf("Exit\n");
             break;
         }
-
-        if (strlen(input) > 0) {
+       
+	if (strncmp(input, "echo ", 5) == 0) {
+	    printf("%s\n", input + 5);
+	} else if (strlen(input) > 0) {
             printf("%s: command found\n", input);
+	}
 
+	if (strlen(input) > 0) {
             history = fopen(".kubsh_history", "a");
             if (history != NULL) {
                 fprintf(history, "%s\n", input);
