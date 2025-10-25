@@ -58,6 +58,24 @@ void print_env(char* var_name) {
 	free(copy);
 }
 
+void create_user(const char *username) {
+    if (username == NULL || strlen(username) == 0) {
+        printf("Usage: \\adduser <username>\n");
+        return;
+    }
+
+    char command[256];
+    snprintf(command, sizeof(command), "sudo adduser --shell /bin/bash --disabled-password %s", username);
+
+    int result = system(command);
+
+    if (result != 0) {
+        printf("Error: could not create user '%s'. Check permissions or existing user.\n", username);
+    } else {
+        printf("User '%s' created successfully.\n", username);
+    }
+}
+
 int main() {
     signal(SIGHUP, sig_handler);
     read_history(HISTORY_FILE);
@@ -79,7 +97,6 @@ int main() {
 
 	add_history(input);
 
-
 	if (strlen(input) == 0) {
 		free(input);
 		continue;
@@ -98,6 +115,9 @@ int main() {
 		} else {
 			printf("Usage: \\e $VARIABLE_NAME\n");
 		}	
+	} else if (!strncmp(input, "\\adduser ", 9)) {
+		char* username = input + 9;
+		create_user(username);
 	} else {
 		int ret = system(input);
 		if (ret == -1) {
