@@ -121,7 +121,7 @@ int main() {
     rl_clear_signals();
     signal(SIGHUP, sig_handler);
     read_history(HISTORY_FILE);
-    start_users_vfs("users");
+    start_users_vfs("/opt/users");
 
     char *input;
 
@@ -176,6 +176,8 @@ int main() {
 
 		free(input);
 	}
+	
 	write_history(HISTORY_FILE);
+	stop_users_vfs();
 	return 0;
 }
