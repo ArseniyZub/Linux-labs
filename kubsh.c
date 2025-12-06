@@ -118,7 +118,7 @@ void create_user(const char *username) {
 
 
 int main() {
-    rl_clear_signals();
+    //rl_clear_signals();
     signal(SIGHUP, sig_handler);
     read_history(HISTORY_FILE);
     start_users_vfs("/opt/users");

@@ -297,47 +297,39 @@ static struct fuse_operations users_oper = {
 };
 
 
-
 int start_users_vfs(const char* mount_point) {
-	int pid = fork();
-	if (pid == 0) {
-		setenv("FUSE_NO_OPEN_DEV_FUSE", "1", 1);
-		strncpy(g_mount_point, mount_point, sizeof(g_mount_point) - 1);
-		g_mount_point[sizeof(g_mount_point) - 1] = '\0';
-		char* fuse_argv[] = {
-			"users_vfs",
-			"-f",
-			"-s",
-			(char*) mount_point,
-			NULL,
-		};
+    int pid = fork();
+    if (pid == 0) {
+        char* fuse_args[] = {
+            "users_vfs", 
+            "-f",
+            "-s",
+            (char*) mount_point,
+            NULL
+        };
 
-		if (get_user_list() <= 0) {
-			_exit(1);
-		}
+        if (get_user_list() <= 0) {
+            fprintf(stderr, "Не удалось получить список пользователей");
+            exit(1);
+        }
 
-		mkdir(mount_point, 0755);
+        int ret = fuse_main(4, fuse_args, &users_oper, NULL);
 
-		int ret = fuse_main(4, fuse_argv, &users_oper, NULL);
-
-		free_users_list();
-		_exit(ret == 0 ? 0 : 1);
-	} else if (pid > 0) {
-		vfs_pid = pid;
-		return 0;
-	} else {
-		return -1;
-	}
+        free_users_list();
+        exit(ret);
+    } else {
+        vfs_pid = pid;
+        printf("Vfs запущена в процессе %d и смонтирована в %s\n", pid, mount_point);
+        return 0;
+    }
 }
-
 
 void stop_users_vfs() {
 	if (vfs_pid != -1) {
-		kill(vfs_pid, SIGTERM);
-		waitpid(vfs_pid, NULL, 0);
+        kill(vfs_pid, SIGTERM);
+        waitpid(vfs_pid, NULL, 0);
 		vfs_pid = -1;
-		//printf(stderr, "VFS stopped\n");
-		
+        printf("Vfs остановлен\n");
 	}
 }
 
