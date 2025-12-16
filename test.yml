@@ -1,0 +1,22 @@
+name: docker
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check directory structure
+        run: ls -la /home/runner/work/kubsh && ls -la /home/runner/work/kubsh/kubsh
+      
+      - name: Pull test image
+        run: docker pull tyvik/kubsh_test:master
+      
+      - name: Run test
+        run: docker run -v /home/runner/work/kubsh/kubsh:/mnt --cap-add SYS_ADMIN --cap-add KILL --device /dev/fuse --security-opt apparmor:unconfined tyvik/kubsh_test:master ./check.sh

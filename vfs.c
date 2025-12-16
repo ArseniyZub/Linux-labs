@@ -332,4 +332,3 @@ void stop_users_vfs() {
         printf("Vfs остановлен\n");
 	}
 }
-
