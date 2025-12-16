@@ -1,8 +1,0 @@
-Package: kubsh
-Version: 1.0.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: 
-Description: Custom shell
-Depends: libreadline8, fuse3
