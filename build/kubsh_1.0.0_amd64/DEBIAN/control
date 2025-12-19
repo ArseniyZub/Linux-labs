@@ -1,0 +1,9 @@
+Package: kubsh
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer:  <@localhost>
+Depends: libreadline8, fuse3, passwd
+Description: Custom shell
+ KubSH is a custom shell with FUSE-based VFS

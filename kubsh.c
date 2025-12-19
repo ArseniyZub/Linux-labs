@@ -1,4 +1,5 @@
 #define FUSE_USE_VERSION 31
+
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -17,167 +18,136 @@
 #include <readline/history.h>
 
 #define HISTORY_FILE ".kubsh_history"
-#define USERS_DIR "/Users/arseny/Desktop/University_Programming/TestDocker/users"
 
 sig_atomic_t signal_received = 0;
 
-void echo(char *line) {
-	printf("%s\n", line);
-}
+/* ================= BASIC ================= */
 
+void echo(char *line) {
+    printf("%s\n", line);
+}
 
 void sig_handler(int signum) {
-	signal_received = signum;
-	printf("Configuration reloaded");
+    (void)signum;
+    signal_received = 1;
+    write(STDOUT_FILENO, "\nConfiguration reloaded\n", 24);
 }
 
-
 void fork_exec(char *full_path, char **argv) {
-	int pid = fork();
-  	if (pid == 0) {
-    		execv(full_path, argv);
-    		perror("execve");
-  	} else {
-    		int status;
-    		waitpid(pid, &status, 0);
-  	}
+    int pid = fork();
+    if (pid == 0) {
+        execvp(full_path, argv);
+        perror(full_path);
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 127) {
+            printf("%s: command not found\n", full_path);
+        }
+    }
 }
 
 int is_executable(const char *path) {
-	return access(path, X_OK) == 0;
+    return access(path, X_OK) == 0;
 }
 
+/* ================= BUILTINS ================= */
 
 void disk_info(char* device) {
-	printf("Disk information for %s: \n", device);
-
-	char command[256];
-	snprintf(command, sizeof(command), "sudo fdisk -l %s 2>/dev/null", device);
-
-	int result = system(command);
-
-	if (result != 0) {
-		printf("Error: Can not get disk information for %s\n", device);
-		printf("Try running with sudo or check device name\n");
-	}
+    char command[256];
+    snprintf(command, sizeof(command),
+             "fdisk -l %s 2>/dev/null", device);
+    system(command);
 }
-
 
 void print_env(char* var_name) {
-	char* value = getenv(var_name);
-	if (value){
-		printf("%s\n", value);
-	}
+    char* value = getenv(var_name);
+    if (!value) return;
 
-	char* copy = strdup(value);
-	char* token = strtok(copy, ":");
+    char* copy = strdup(value);
+    if (!copy) return;
 
-	while (token) {
-		printf("%s\n", token);
-		token = strtok(NULL, ":");
-	}
-
-	free(copy);
+    char* token = strtok(copy, ":");
+    while (token) {
+        printf("%s\n", token);
+        token = strtok(NULL, ":");
+    }
+    free(copy);
 }
 
+/* ================= MAIN ================= */
 
-void create_user(const char *username) {
-    if (username == NULL || strlen(username) == 0) {
-        printf("Usage: \\adduser <username>\n");
-        return;
-    }
-
-    char command[256];
-    snprintf(command, sizeof(command), "%s/%s", USERS_DIR, username);
-
-    struct stat st = {0};
-    if (stat(command, &st) == 0) {
-	    printf("User '%s' already exist.\n", username);
-	    return;			
-    }
-
-    if (mkdir(command, 0775) != 0) {
-	printf("Error creating user directory");
-	return;
-    }
-
-    char shell_path[512];
-    snprintf(shell_path, sizeof(shell_path), "%s/.shell", command);
-	
-    FILE *f = fopen(shell_path, "w");
-    if (!f) {
-        perror("Error creating .shell file");
-        return;
-    }
-
-    fprintf(f, "/bin/bash\n");
-    fclose(f);
-
-    printf("User '%s' created successfully in %s with shell /bin/bash\n", username, command);
-}
-
-
-int main() {
-    //rl_clear_signals();
+int main(void) {
     signal(SIGHUP, sig_handler);
-    read_history(HISTORY_FILE);
+
+    char history_path[512];
+    snprintf(history_path, sizeof(history_path),
+             "%s/%s", getenv("HOME"), HISTORY_FILE);
+
+    read_history(history_path);
+
+    /* VFS */
+    mkdir("/opt/users", 0755);
     start_users_vfs("/opt/users");
 
     char *input;
 
     while (1) {
-		input = readline("$ ");
+        input = readline("$ ");
 
-		if (signal_received) {
-			signal_received = 0;
-				continue;
-		}
+        if (signal_received) {
+            signal_received = 0;
+            free(input);
+            continue;
+        }
 
-		if (input == NULL) {
-			printf("\nExit (Ctrl+D)\n");
-			break;
-		}
+        if (input == NULL) {
+            printf("\nExit (Ctrl+D)\n");
+            break;
+        }
 
-		add_history(input);
+        if (*input)
+            add_history(input);
 
-		if (strlen(input) == 0) {
-			free(input);
-			continue;
-		}
-		
-		if (strcmp(input, "\\q") == 0) {
-			printf("Exit\n");
-			break;
-		} else if (strncmp(input, "debug ", 6) == 0) {
-			char* temp = input + 6;
-			if (temp[0] == '\'' && temp[strlen(temp) - 1] == '\'') {
-				temp[strlen(temp) - 1] = '\0';
-        		temp++;
-			}
-			echo(temp);
-		} else if (!strncmp(input, "\\l /dev/sda", 12)) {
-			disk_info("/dev/sda");	
-		} else if (!strncmp(input, "\\e $", 4))  {
-			char* var_name = input + 4;
-			if (*var_name != '\0') {
-				print_env(var_name);
-			} else {
-				printf("Usage: \\e $VARIABLE_NAME\n");
-			}	
-		} else if (!strncmp(input, "\\adduser ", 9)) {
-			char* username = input + 9;
-			create_user(username);
-		} else {
-			int ret = system(input);
-			if (WIFEXITED(ret) && WEXITSTATUS(ret) == 127) {
-				printf("%s: command not found\n", input);
-			}
-		}
+        if (strcmp(input, "\\q") == 0) {
+            printf("Exit\n");
+            free(input);
+            break;
+        }
+        else if (strncmp(input, "debug ", 6) == 0) {
+            char* temp = input + 6;
+            if (temp[0] == '\'' && temp[strlen(temp) - 1] == '\'') {
+                temp[strlen(temp) - 1] = '\0';
+                temp++;
+            }
+            echo(temp);
+        }
+        else if (!strcmp(input, "\\l /dev/sda")) {
+            disk_info("/dev/sda");
+        }
+        else if (!strncmp(input, "\\e $", 4))  {
+            print_env(input + 4);
+        }
+        else {
+            char *argv[64];
+            int argc = 0;
 
-		free(input);
-	}
-	
-	write_history(HISTORY_FILE);
-	stop_users_vfs();
-	return 0;
+            char *token = strtok(input, " ");
+            while (token && argc < 63) {
+                argv[argc++] = token;
+                token = strtok(NULL, " ");
+            }
+            argv[argc] = NULL;
+
+            if (argv[0])
+                fork_exec(argv[0], argv);
+        }
+
+        free(input);
+    }
+
+    write_history(history_path);
+    stop_users_vfs();
+    return 0;
 }
